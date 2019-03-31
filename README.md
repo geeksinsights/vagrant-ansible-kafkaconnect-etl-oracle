@@ -11,16 +11,25 @@ This will setup the entire environment and once ready you can test out the chang
 # Installation
 
 1. Download the repository
+
 2. Run Vagrant
+
     vagrant up
+    
 3. vagrant ssh
+
     cd /vagrant
+    
     ansible-playbook oracle12c.yml
+    
     ansible-playbook ansible-kafka-etl-solution.yml
     
 4. Once the playbook completed, you can now setup the hadoop, kafka, hive metastore using below
+    
     sudo su - root
+    
     cd /vagrant
+    
     ./start.sh
 
 5. Now run the kafka-connect in standalone mode, this will integrate , oracle database to kafka topic and stream data to hdfs partitions, hive metastore will be used as schema registry to obtain latest schema structure from oracle database to hdfs.
