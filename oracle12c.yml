@@ -1,0 +1,139 @@
+---
+- hosts: localhost
+  remote_user: root
+  become_user: root
+  become_method: sudo
+  tasks:
+     - name: Update /etc/hosts from inventory
+       lineinfile: dest=/etc/hosts regexp='.*{{item}}$' line='{{hostvars[item].ansible_default_ipv4.address}} {{item}}' state=present
+       with_items: '{{groups.all}}'
+       become: true
+
+     - name: Create Disk Partion
+       parted:
+         device: /dev/sdb
+         number: 1
+         flags: [ lvm ]
+         state: present
+       become: true
+
+     - name: Format Partition
+       filesystem:
+          fstype: xfs
+          dev: /dev/sdb1
+       become: true
+
+     - name: Mount the Partition
+       mount:
+          fstype: xfs
+          src: /dev/sdb1
+          path: /opt/
+          state: mounted
+       become: true
+
+     - name: download pre-reqs
+       get_url:
+         url: https://yum.oracle.com/repo/OracleLinux/OL7/latest/x86_64/getPackage/oracle-database-preinstall-18c-1.0-1.el7.x86_64.rpm
+         dest: /tmp/
+       become: true
+
+     - name: install pre-reqs rpm
+       yum:
+         name: /tmp/oracle-database-preinstall-18c-1.0-1.el7.x86_64.rpm
+         state: present
+       become: true
+
+     - name: provide permission to create folder /opt
+       command: chown -R oracle:oinstall /opt/
+       become: true
+
+     - name: Create directories
+       shell: |
+         mkdir -p /opt/oracle/oraInventory
+         mkdir -p /opt/oracle/product/12.2.0/db_home1
+         chown -R oracle:oinstall /opt/oracle/oraInventory
+         chown -R oracle:oinstall /opt/oracle
+       become: true
+     
+     - name: Unzip software to location
+       unarchive:
+         src:  linuxamd64_12102_database_1of2.zip
+         dest: /vagrant/
+         group: oinstall
+         owner: oracle
+         force: no
+       become: true
+       ignore_errors: true
+
+     - name: Unzip software to location
+       unarchive:
+         src: linuxamd64_12102_database_2of2.zip
+         dest: /vagrant/
+         group: oinstall
+         owner: oracle
+         force: no
+       become: true
+       ignore_errors: true
+
+     - name: copy database response file
+       copy:
+         src: db_install2.rsp
+         group: oinstall
+         owner: oracle
+         dest: /tmp
+       become: true
+     
+     - name: Run Installer in silent mode
+       shell: |
+         sudo chmod 777 /opt/oracle/product/12.2.0/dbhome_1/runInstaller
+         sudo su - oracle -c "export ORACLE_HOME=/opt/oracle/product/12.2.0/db_home1;rm -rf /opt/oracle/oraInventory/;/vagrant/database/runInstaller -silent -responseFile /tmp/db_install2.rsp"
+       register: outputlog
+       become_method: sudo
+       become_user: oracle
+       ignore_errors: true
+     
+     - debug: var=outputlog.stdout_lines
+       ignore_errors: true
+ 
+     - name: Installing Oracle 12c wait for completion
+       pause:
+         minutes: 6
+  
+     - name: Run root.sh
+       shell: |
+         /opt/oracle/oraInventory/orainstRoot.sh
+         /opt/oracle/product/12.2.0/db_home1/root.sh
+       register: rootshoutput
+       become: true
+       
+     - debug: var=rootshoutput.stdout_lines
+       ignore_errors: true
+     
+     - name: Running DBCA config
+       shell: |
+         sudo su - oracle -c "export ORACLE_HOME=/opt/oracle/product/12.2.0/db_home1;/opt/oracle/product/12.2.0/db_home1/cfgtoollogs/configToolAllCommands RESPONSE_FILE=/tmp/db_install2.rsp"
+       register: dbcaoutput
+       become: true
+       ignore_errors: true
+       
+     - debug: var=dbcaoutput.stdout_lines
+       ignore_errors: true
+       
+     - name: Running DBCA config
+       shell: |
+          sudo su - oracle -c "/opt/oracle/product/12.2.0/db_home1/bin/dbca -silent -createDatabase -templateName General_Purpose.dbc -gdbName db12c -sid db12c -SysPassword oracle#123 -createAsContainerDatabase false -SystemPassword oracle#123 -emConfiguration NONE -redoLogFileSize 100 -storageType FS -listeners LISTENER12c -registerWithDirService false -characterSet AL32UTF8 -nationalCharacterSet AL16UTF16 -databaseType MULTIPURPOSE -automaticMemoryManagement true -totalMemory 2000 -sampleSchema true "
+       register: dbcaoutput
+       ignore_errors: true
+       become: true
+
+     - debug: var=dbcaoutput.stdout_lines
+       ignore_errors: true
+
+     - name: Running DBCA config
+       shell: |
+         sudo su - oracle -c " export ORACLE_HOME=/opt/oracle/product/12.2.0/db_home1; export PATH=$PATH:$ORACLE_HOME/bin; /opt/oracle/product/12.2.0/dbhome_1/bin/lsnrctl start"
+       register: listeneroutput
+       ignore_errors: true
+       
+     - debug: var=listeneroutput.stdout_lines
+       ignore_errors: true

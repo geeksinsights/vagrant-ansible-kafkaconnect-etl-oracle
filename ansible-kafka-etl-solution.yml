@@ -1,0 +1,115 @@
+---
+- hosts: localhost
+  remote_user: root
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: download Hadoop 2.6.5
+      get_url:
+        url: http://mirrors.koehn.com/apache/hadoop/common/hadoop-2.6.5/hadoop-2.6.5.tar.gz
+        dest: /opt/oracle/oradata
+      become: true
+
+    - name: download Hive
+      get_url:
+       url: http://ftp.wayne.edu/apache/hive/hive-1.2.2/apache-hive-1.2.2-bin.tar.gz
+       dest: /opt/oracle/oradata
+      become: true
+
+    - name: download Confluent Platform for Kafka
+      get_url:
+       url: https://packages.confluent.io/archive/4.1/confluent-oss-4.1.2-2.11.zip
+       dest: /opt/oracle/oradata
+      become: true
+
+    - name: Install mysql
+      shell: |
+        yum localinstall -y https://dev.mysql.com/get/mysql80-community-release-el7-1.noarch.rpm
+        yum --enablerepo=mysql80-community install -y mysql-community-server
+        sudo systemctl enable  --now mysqld.service
+      become: true
+
+    - name: Install MySQL Java Connector
+      shell: |
+         yum install -y mysql-connector-java-8.0.12
+         yum install -y MySQL-python
+         yum install -y dos2unix
+         chmod 777 /usr/share/java/mysql-connector-java-8.0.12.jar
+         mkdir -p /usr/lib/jvm/java-7-oracle/bin/
+         cd /usr/lib/jvm/java-7-oracle/bin/
+         ln -s /etc/alternatives/java java
+      become: true
+ 
+    - name: Unarchive and link the hadoop and hive
+      shell: |
+         cd /opt/oracle/oradata
+         tar -xvzf hadoop-2.6.5.tar.gz
+         tar -xvzf apache-hive-1.2.2-bin.tar.gz
+         unzip confluent-oss-4.1.2-2.11.zip
+         ln -s /opt/oracle/oradata/apache-hive-1.2.2-bin /opt/hive
+         ln -s /opt/oracle/oradata/hadoop-2.6.5 /opt/hadoop
+         ln -s /opt/oracle/oradata/confluent-4.1.2 /opt/confluent
+         cp /vagrant/.profile /home/vagrant/ /root
+         chown vagrant:vagrant /home/vagrant/.profile
+         chown root:root /home/root/.profile
+         cp /vagrant/ojdbc8.jar /usr/share/java/
+         cp -r /vagrant/etc /mnt/
+         chown -R vagrant:vagrant /mnt/etc
+         mkdir -p /mnt/logs
+         chown -R vagrant:vagrant /mnt/logs
+         mkdir -p /mnt/dfs/name
+         mkdir -p /mnt/dfs/data
+         chown -R vagrant:vagrant /mnt/dfs
+         chown -R vagrant:vagrant /mnt/dfs/name
+         chown -R vagrant:vagrant /mnt/dfs/data
+         cp /vagrant/ojdbc8.jar /usr/share/java
+         ln -s /usr/share/java/mysql-connector-java-8.0.12.jar /opt/hive/lib/mysql-connector-java.jar
+         ln -s /usr/share/java/mysql-connector-java-8.0.12.jar /opt/confluent/share/java/kafka-connect-jdbc/mysql-connector-java.jar
+         ln -s /usr/share/java/ojdbc8.jar /opt/confluent/share/java/kafka-connect-jdbc/ojdbc8.jar
+         ln -s /usr/share/java/ojdbc8.jar /opt/hive/lib/ojdbc8.jar
+         dos2unix /root/.bash_profile
+         dos2unix /opt/confluent/bin/connect-standalone
+      become: true
+      ignore_errors: true
+
+    - name: Copy bash_profile
+      copy:
+        src: ".bash_profile"
+        dest: "/root/"
+        owner: root
+        group: root
+        mode: 0777
+      become: true
+    - name: Copy oracle_setup file
+      copy:
+        src: "oracle_setup2.sql"
+        dest: "/tmp/"
+        owner: root
+        group: root
+        mode: 0777
+      become: true
+    - name: copy connect-standalone file
+      copy:
+        src: "etc/connect-standalone"
+        dest: "/opt/confluent/bin/"
+        owner: root
+        group: root
+        mode: 0777
+        force: yes
+      become: true
+    - name: Copy startup file
+      copy:
+        src: "startup.sh"
+        dest: "/tmp/"
+        owner: root
+        group: root
+        mode: 0777
+      become: true
+    - name: Copy cleanup file
+      copy:
+        src: "cleanup.sh"
+        dest: "/tmp/"
+        owner: root
+        group: root
+        mode: 0777
+      become: true
