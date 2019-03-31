@@ -26,4 +26,7 @@ This will setup the entire environment and once ready you can test out the chang
 5. Now run the kafka-connect in standalone mode, this will integrate , oracle database to kafka topic and stream data to hdfs partitions, hive metastore will be used as schema registry to obtain latest schema structure from oracle database to hdfs.
 
 
-   
+# Youtube Video for setup and running installation and complete ETL demo
+
+https://www.youtube.com/playlist?list=PLR6rN4cTV4BTxVQS-uL7NE6htS-pyLsRV
+
